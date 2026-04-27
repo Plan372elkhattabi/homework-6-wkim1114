@@ -1,8 +1,128 @@
 ---
-title: PLAN 372
-author: Your Name
+title: "PLAN 372 Homework 6: Text Management"
+author: "Will Kim"
+format:
+  html:
+    code-overflow: wrap
+editor: visual
+theme: cosmo
 ---
 
-Place your analysis code in this file; you must not rename it, though you may delete these instructions. Please update the block above with the name of the assignment and with your name.When you push your code to github, it will automatically be rendered for grading. You can see whether the automatic rendering worked in the "Actions" tab of the github repository.
+```{r}
+#| output: false
 
-If you use any libraries other than `tidyverse`, `lubridate`, `sf`, `ggplot2`, `here`, `terra`, `ggspatial`, `rJavaEnv`, and `r5r`, add them to the list in the DESCRIPTION file.
+# Place your analysis code in this file; you must not rename it, though you may delete these instructions. Please update the block above with the name of the assignment and with your name.When you push your code to github, it will automatically be rendered for grading. You can see whether the automatic rendering worked in the "Actions" tab of the github repository.
+
+# If you use any libraries other than `tidyverse`, `lubridate`, `sf`, `ggplot2`, `here`, `terra`, `ggspatial`, `rJavaEnv`, and `r5r`, add them to the list in the DESCRIPTION file.
+```
+
+```{r}
+# Load library
+library(tidyverse)
+
+# Load dataset
+trees <- read_csv("TS3_Raw_tree_data.csv")
+```
+
+# Question 1
+
+```{r}
+# Extract city and state into separate columns using regular expressions.
+trees[, c("city_name", "state")] <- str_match(trees$City, "^(.*),[:space:]+([:alpha:]{2})$")[, 2:3]
+
+# Group by the state column and count records
+state_counts <- trees %>% 
+  group_by(state) %>% 
+  summarize(total_records = n())
+
+# Plot the sample sizes
+ggplot(state_counts, aes(x = state, y = total_records)) +
+  geom_col() +
+  labs(
+    title = "Tree Sample Sizes by State", 
+    x = "State", 
+    y = "Total Records")
+
+# Show table for exact number
+state_counts
+```
+
+# Question 2
+
+```{r}
+# Filter the dataset to only these states.
+nc_sc_trees <- trees %>% 
+  filter(state == "NC" | state == "SC")
+
+# Output the unique cities from our filtered data
+unique(nc_sc_trees$city_name)
+```
+
+Data was collected from two cities in the Carolinas: Charlotte (NC) and Charleston (SC).
+
+# Question 3
+
+```{r}
+# Extract just the Genus from the ScientificName column.
+nc_sc_trees$genus <- str_match(nc_sc_trees$ScientificName, "^([:alpha:]+)")[, 2]
+
+# Group by genus, calculate the mean canopy diameter, and find the largest
+nc_sc_trees %>%
+  group_by(genus) %>%
+  summarize(avg_crown = mean(`AvgCdia (m)`, na.rm = TRUE)) %>%
+  arrange(-avg_crown) %>%
+  head(5)
+```
+
+The Quercus genus has the largest average crown diameter in North and South Carolina, measuring approximately 13.62 meters
+
+# Question 4
+
+```{r}
+# Check if average age might explain the crown size differences
+nc_sc_trees %>%
+  group_by(genus) %>%
+  summarize(avg_age = mean(Age, na.rm = TRUE),
+            avg_crown = mean(`AvgCdia (m)`, na.rm = TRUE)) %>%
+  arrange(-avg_age)
+```
+
+No, age does not fully explain the differences in crown size. While the genus with the largest crown (Quercus) also happens to be the oldest on average, there is no consistent relationship between age and crown size across the rest of the dataset. For example, Magnolia is the second oldest genus (29.1 years) but has a relatively small crown (7.98m), while Acer is younger (24.4 years) but has a much larger crown (11.45m). This indicates that intrinsic species characteristics and genetics dictate crown size much more than age alone.
+
+# Extra Credit: Genera Recommendation
+
+```{r}
+# Create a new column representing the growth rate (Crown Size / Age), then find the highest average.
+nc_sc_trees %>%
+  # filter out trees with an age of 0 to avoid dividing by zero
+  filter(Age > 0) %>% 
+  mutate(growth_rate = `AvgCdia (m)` / Age) %>%
+  group_by(genus) %>%
+  summarize(avg_growth_rate = mean(growth_rate, na.rm = TRUE)) %>%
+  arrange(-avg_growth_rate) %>%
+  head(5)
+```
+
+To determine this, I created a new metric called `growth_rate` by dividing the crown diameter by the tree's age. Based on this metric, the Prunus genus is recommended, as it produces a large crown the fastest with an average growth rate of 0.64 meters per year.
+
+# Extra Credit: Species
+
+```{r}
+# Remove the " x " from hybrid plants using str_replace
+trees_cleaned <- trees %>%
+  mutate(clean_name = str_replace(ScientificName, "[:space:]x[:space:]", " "))
+
+# Now, extract the Genus and Species using two capture groups.
+# Extract exactly two words at the START of the string (^)
+# By specifying with (^) ignores additional information like trailing cultivars ('Fastigiata') or varieties (var. silicicola)
+trees_cleaned[, c("genus", "species")] <- str_match(trees_cleaned$clean_name, "^([:alpha:]+)[:space:]+([:alpha:]+)")[, 2:3]
+
+# Count the distinct species per genus
+trees_cleaned %>%
+  group_by(genus) %>%
+  summarize(num_species = n_distinct(species))
+```
+
+# AI reflection
+
+For this assignment, I utilized an AI language model acting as an R tutor to assist with the minor formatting of my code. This tool strongly supported my learning by helping me troubleshoot code syntax and interpret the output tables critically, which allowed me to better understand the underlying data wrangling concepts from lecture.
